@@ -1,0 +1,200 @@
+#!/bin/sh -u
+# -*- coding:utf-8-unix; mode:sh; -*-
+
+### BEGIN INIT INFO
+# Provides:          skeleton
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: NicoNico Douga Download Worker
+# Description:       NicoNico Douga Download Worker
+### END INIT INFO
+
+#CONFIG=/etc/nicodl-config
+CONFIG=./nicodl-config
+
+INTERVAL=60
+NICOVIDEO_DL=/usr/local/bin/nicovideo-dl
+NICOVIDEO_DL_OPTS='--netrc --quiet'
+SAVE_DIR="."
+DEBUG=true
+POOL_FILE="./nicodl.pool"
+PID_FILE="./pid"
+LOG_FILE="./log"
+
+[ -f "$CONFIG" ] && . "$CONFIG"
+
+PID=
+TARGET=
+TARGET_FILE=
+BASE_NAME=`basename $0`
+
+$DEBUG && set -x
+
+do_start(){
+    p -n "$BASE_NAME start: "
+
+    get_pid
+    if is_alive_pid "$PID"
+    then
+        p fail
+        e "already started"
+        exit 1
+    fi
+
+    while true
+    do
+        download_all
+        sleep $INTERVAL
+    done &
+    echo -n $! > "$PID_FILE"
+
+    get_pid
+
+    sleep 1
+    if is_alive_pid $PID
+    then
+        p "OK"
+        l 'start'
+    else
+        p "FAIL"
+    fi
+}
+
+do_stop(){
+    p -n "$BASE_NAME stop: "
+
+    get_pid
+    if ! is_alive_pid "$PID"
+    then
+        p "FAIL"
+        e "Error: Not started"
+        exit 1
+    fi
+
+    if (! kill -9 $PID)
+    then
+        p "FAIL"
+        e "Error: Cannot killed $BASE_NAME (pid: $PID)"
+        exit 1
+    fi
+    rm "$PID_FILE"
+
+    p "OK"
+    l "stop"
+}
+
+do_status(){
+    p -n "$BASE_NAME status: "
+
+    get_pid
+    if is_alive_pid $PID
+    then
+        p "Running (pid: $PID)"
+    else
+        p "NOT running"
+    fi
+}
+
+p(){
+    echo "$@"
+}
+d(){
+    $DEBUG && p "[DEBUG] $@"
+}
+e(){
+    p "$@" >&2
+}
+l(){
+    d "$@"
+    p "$@" | log
+}
+log(){
+    local datetime="`date +'%F %T'`"
+    sed -e "s/^/$datetime /" >> "$LOG_FILE"
+}
+
+get_pid(){
+    PID="`cat "$PID_FILE" 2> /dev/null`"
+}
+is_alive_pid(){
+    [ -n "$1" ] && [ -n "`ps -p $1 -o comm=`" ]
+}
+
+init(){
+    for dir in "$LOG_FILE" "$PID_FILE" "$POOL_FILE" "$SAVE_DIR"
+    do mkdir -p "`dirname $dir`"
+    done
+
+    [ ! -f "$POOL_FILE" ] && touch "$POOL_FILE"
+}
+
+dequeue(){
+    while [ -z "$TARGET" ] && _continue
+    do
+        TARGET="`head -1 "$POOL_FILE"`"
+        local tmp="`grep -v "^$TARGET$" "$POOL_FILE"`"
+        echo -n "$tmp" > "$POOL_FILE"
+    done
+}
+
+_continue(){
+    [ ! 0 -eq "`wc --lines "$POOL_FILE" | cut -f1 -d' '`" ]
+}
+
+download(){
+    dequeue
+    if [ -n "$TARGET" ] && create_file_name
+    then
+        l "download $TARGET ($TARGET_FILE)"
+        "$NICOVIDEO_DL" $NICOVIDEO_DL_OPTS --output="$TARGET_FILE" "$TARGET"
+        l "done $TARGET ($TARGET_FILE)"
+        TARGET=
+        TARGET_FILE=
+        return 0
+    else
+        d "cannot get URL or file name"
+        return 1
+    fi
+}
+
+create_file_name(){
+    local title="`curl -s $TARGET | sed -n 's/^\s*<h1 .*>\(.*\)<\/h1>\s*$/\1/p' | sed 's/ /_/g'`"
+    local id="`echo $TARGET | sed -n 's/^.*\(sm[0-9]\+\).*$/\1/p'`"
+    if [ -z "$title" ] || [ -z "$id" ]
+    then
+        l "ERROR: invalid title($title) or id($id)"
+        return 1
+    fi
+
+    TARGET_FILE="${SAVE_DIR}/${title}__${id}.mp4"
+    [ -e "$TARGET_FILE" ] && rm -f "$TARGET_FILE"
+
+    return 0
+}
+
+download_all(){
+    while download
+    do true
+    done
+}
+
+h(){
+    p "$0 {start|stop|restart|status}"
+}
+
+if [ ! 1 -eq $# ]
+then
+    h
+    exit 1
+fi
+
+init
+
+case $1 in
+    start | stop | status ) "do_$1" ;;
+    restart ) do_start && do_stop ;;
+    download | download_all ) "$1" ;;
+    *) h ;;
+esac

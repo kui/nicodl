@@ -1,0 +1,19 @@
+# -*- coding:utf-8-unix; mode:sh; -*-
+# a config file for nicodl-worker
+
+INTERVAL=60
+NICOVIDEO_DL=/usr/local/bin/nicovideo-dl
+NICOVIDEO_DL_OPTS='--netrc --quiet'
+DEBUG=false
+
+#SAVE_DIR="/var/lib/nicodl/sm"
+SAVE_DIR="./sm"
+
+#POOL_FILE="/var/run/nicodl.pool"
+POOL_FILE="./nicodl.pool"
+
+#PID_FILE="/var/run/nicodl.pid"
+PID_FILE="./nicodl.pid"
+
+#LOG_FILE="/var/log/nicodl.log"
+LOG_FILE="./nicodl.log"
