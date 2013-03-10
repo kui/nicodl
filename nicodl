@@ -11,8 +11,7 @@
 # Description:       NicoNico Douga Download Worker
 ### END INIT INFO
 
-#CONFIG=/etc/nicodl-config
-CONFIG=./nicodl-config
+CONFIG=/etc/nicodl-config
 
 INTERVAL=60
 NICOVIDEO_DL=/usr/local/bin/nicovideo-dl
