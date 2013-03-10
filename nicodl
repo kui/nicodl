@@ -11,9 +11,10 @@
 # Description:       NicoNico Douga Download Worker
 ### END INIT INFO
 
-CONFIG=/etc/nicodl-config
+[ -z "$CONFIG" ] && CONFIG=/etc/nicodl-config
 
 INTERVAL=60
+RETRY_INTERVAL=60
 NICOVIDEO_DL=/usr/local/bin/nicovideo-dl
 NICOVIDEO_DL_OPTS='--netrc --quiet'
 SAVE_DIR="."
@@ -147,7 +148,13 @@ download(){
     if [ -n "$TARGET" ] && create_file_name
     then
         l "download $TARGET ($TARGET_FILE)"
-        "$NICOVIDEO_DL" $NICOVIDEO_DL_OPTS --output="$TARGET_FILE" "$TARGET"
+        "$NICOVIDEO_DL" $NICOVIDEO_DL_OPTS --output="$TARGET_FILE" "$TARGET" 2>&1 | log
+        while [ ! -f "$TARGET_FILE" ]
+        do
+            l "retry $TARGET ($TARGET_FILE)"
+            "$NICOVIDEO_DL" $NICOVIDEO_DL_OPTS --output="$TARGET_FILE" "$TARGET" 2>&1 | log
+            sleep "$RETRY_INTERVAL"
+        done
         l "done $TARGET ($TARGET_FILE)"
         TARGET=
         TARGET_FILE=

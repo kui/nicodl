@@ -4,7 +4,7 @@
 INTERVAL=60
 NICOVIDEO_DL=/usr/local/bin/nicovideo-dl
 NICOVIDEO_DL_OPTS='--netrc --quiet'
-DEBUG=false
+DEBUG=true
 
 #SAVE_DIR="/var/lib/nicodl/sm"
 SAVE_DIR="./sm"
